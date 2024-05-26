@@ -75,6 +75,20 @@ signalement_resource_fields = {
 
 
 class Signalement(Resource):
+    @marshal_with(signalement_resource_fields)
+    def get(self):
+        signalements = {}
+
+        for key, session in sessions.items():
+            try:
+                conn = session.connection()
+                select_query = SignalementsTable.select()
+                signalements[key] = [dict(row) for row in conn.execute(select_query)]
+                logger.info(f'Signalements from {key} fetched successfully')
+            except Exception as e:
+                logger.error(f'Failed to fetch signalements from {key}: {str(e)}')
+
+        return signalements, 200
 
     @marshal_with(signalement_resource_fields)
     def post(self):
@@ -100,8 +114,6 @@ class Signalement(Resource):
             status=args['status']
         )
 
-        responses = {}
-
         signalement_dict = {
             'date': date_obj,
             'localization': args['localization'],
@@ -117,13 +129,25 @@ class Signalement(Resource):
                 session.commit()
                 logger.info(
                     f'Signalement {signalement_dict} added to {key} successfully')
-                responses[key] = f'Signalement added to {key} successfully'
             except Exception as e:
                 session.rollback()
                 logger.error(f'Failed to add signalement to {key}: {str(e)}')
-                responses[key] = f'Failed to add signalement to {key}: {str(e)}'
 
         return signalement_dict, 201
+    
+    def delete(self):
+        for key, session in sessions.items():
+            try:
+                conn = session.connection()
+                delete_query = SignalementsTable.delete()
+                conn.execute(delete_query)
+                session.commit()
+                logger.info(f'Signalements from {key} deleted successfully')
+            except Exception as e:
+                session.rollback()
+                logger.error(f'Failed to delete signalements from {key}: {str(e)}')
+
+        return 'All signalements deleted successfully', 200
 
 
 api.add_resource(Signalement, '/signalement')
